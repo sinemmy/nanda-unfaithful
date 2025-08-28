@@ -1,0 +1,55 @@
+# Claude
+.claude/*
+.claude
+CLAUDE.md
+
+# Environment variables
+.env
+.env.*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Model cache (important to avoid re-downloading ~30GB)
+model_cache/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Experiment outputs and results
+outputs/
+results/
+vast_results_*/
+results_archive.tar.gz
+initial_results.tar.gz
+mech_interp_results.tar.gz
+misalignment_examples.tar.gz
+instance_info.txt
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# MacOS
+.DS_Store
+
+# Vast.ai specific
+vast_instance_info.txt
+ssh_config.txt

@@ -1,0 +1,26 @@
+# Core dependencies
+PyYAML>=6.0
+python-dotenv>=1.0.0
+beautifulsoup4>=4.12.0  # For parsing model outputs with HTML-like tags
+lxml>=4.9.0            # Parser for BeautifulSoup
+
+# API client libraries - NOT NEEDED for HuggingFace approach
+# Only uncomment if you want to run Anthropic's original API-based experiments
+# anthropic>=0.49
+# openai>=1.70
+# google-generativeai>=0.8
+
+# For HuggingFace model loading (Qwen-14B)
+torch>=2.0.0
+transformers>=4.35.0
+accelerate>=0.24.0
+datasets>=2.14.0
+sentencepiece>=0.1.99  # Required for some tokenizers
+tokenizers>=0.15.0     # Fast tokenizers for transformers
+
+# Additional utilities
+tqdm>=4.65.0
+numpy>=1.24.0
+
+# vast.ai management (optional but recommended)
+vastai>=0.2.0  # CLI for managing vast.ai instances
