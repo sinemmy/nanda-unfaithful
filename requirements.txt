@@ -1,27 +1,22 @@
 # Core dependencies
 PyYAML
 python-dotenv
-beautifulsoup4  # For parsing model outputs with HTML-like tags
-lxml            # Parser for BeautifulSoup
-
-# API client libraries - NOT NEEDED for HuggingFace approach
-# Only uncomment if you want to run Anthropic's original API-based experiments
-# anthropic
-# openai
-# google-generativeai
-
-# For HuggingFace model loading (Qwen-14B)
-torch
-transformers
-accelerate
-datasets
-bitsandbytes   # For 8-bit and 4-bit quantization
-sentencepiece  # Required for some tokenizers
-tokenizers     # Fast tokenizers for transformers
-
-# Additional utilities
+beautifulsoup4
+lxml
 tqdm
 numpy
 
-# vast.ai management (optional but recommended)
-vastai  # CLI for managing vast.ai instances
+# ML dependencies
+# Note: torch should be installed separately with CUDA support
+# Run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+transformers
+accelerate
+bitsandbytes
+sentencepiece
+tokenizers
+
+# Datasets
+datasets
+
+# vast.ai management (optional)
+vastai
