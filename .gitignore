@@ -53,3 +53,4 @@ instance_info.txt
 # Vast.ai specific
 vast_instance_info.txt
 ssh_config.txt
+.vast_instance
