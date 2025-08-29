@@ -64,15 +64,24 @@ check_requirements() {
     # Check for required files
     [[ -f "$LOCAL_ENV" ]] || die ".env file not found. Copy .env.example and configure."
     
+    # Source .env to get SSH_KEY_PATH
+    source "$LOCAL_ENV"
+    
     # Check .env has required variables
     grep -q "GITHUB_REPO=" "$LOCAL_ENV" || die "GITHUB_REPO not set in .env"
+    
+    # Expand SSH_KEY_PATH if it contains ~
+    SSH_KEY_PATH="${SSH_KEY_PATH/#\~/$HOME}"
+    
+    # Check if SSH key exists
+    [[ -f "$SSH_KEY_PATH" ]] || die "SSH key not found at $SSH_KEY_PATH. Set SSH_KEY_PATH in .env"
     
     # Validate experiment type
     [[ "$EXPERIMENT_TYPE" =~ ^(initial|followup)$ ]] || die "Invalid experiment type: $EXPERIMENT_TYPE"
     
     # Check SSH connectivity
     info "Checking SSH connectivity..."
-    ssh -o ConnectTimeout=5 -p "$VAST_PORT" "root@$VAST_IP" "echo 'Connected'" &>/dev/null || \
+    ssh -i "$SSH_KEY_PATH" -o ConnectTimeout=5 -p "$VAST_PORT" "root@$VAST_IP" "echo 'Connected'" &>/dev/null || \
         die "Cannot connect to $VAST_IP:$VAST_PORT"
 }
 
@@ -80,10 +89,10 @@ deploy_code() {
     info "Deploying code securely..."
     
     # Upload .env to temporary location with restricted permissions
-    scp -P "$VAST_PORT" "$LOCAL_ENV" "root@$VAST_IP:$REMOTE_TMP"
+    scp -i "$SSH_KEY_PATH" -P "$VAST_PORT" "$LOCAL_ENV" "root@$VAST_IP:$REMOTE_TMP"
     
     # Deploy and setup on remote
-    ssh -p "$VAST_PORT" "root@$VAST_IP" << 'ENDSSH'
+    ssh -i "$SSH_KEY_PATH" -p "$VAST_PORT" "root@$VAST_IP" << 'ENDSSH'
 set -euo pipefail
 
 # Source the temporary env file
@@ -161,7 +170,7 @@ run_experiments() {
         analysis_cmd="python run_anchors_analysis.py --input-dir ./outputs/full_analysis/* --num-rollouts 10"
     fi
     
-    ssh -p "$VAST_PORT" "root@$VAST_IP" << ENDSSH
+    ssh -i "$SSH_KEY_PATH" -p "$VAST_PORT" "root@$VAST_IP" << ENDSSH
 cd $REMOTE_WORKSPACE
 source .venv/bin/activate
 
@@ -193,7 +202,7 @@ download_results() {
     mkdir -p "$results_dir"
     
     # Download archive
-    scp -P "$VAST_PORT" \
+    scp -i "$SSH_KEY_PATH" -P "$VAST_PORT" \
         "root@$VAST_IP:$REMOTE_WORKSPACE/${EXPERIMENT_TYPE}_results.tar.gz" \
         "$results_dir/" || warn "Failed to download results archive"
     
@@ -209,7 +218,7 @@ download_results() {
 cleanup_remote() {
     info "Cleaning up sensitive files on remote..."
     
-    ssh -p "$VAST_PORT" "root@$VAST_IP" << 'ENDSSH' || true
+    ssh -i "$SSH_KEY_PATH" -p "$VAST_PORT" "root@$VAST_IP" << 'ENDSSH' || true
 # Clean up sensitive files
 find /workspace -name ".env*" -type f -exec shred -vfz {} \; 2>/dev/null
 find /tmp -name ".env*" -type f -exec shred -vfz {} \; 2>/dev/null
@@ -224,9 +233,19 @@ auto_terminate_instance() {
     if command -v vastai &>/dev/null; then
         # Try to find and terminate the instance
         instance_id=$(vastai show instances --raw 2>/dev/null | \
-            python3 -c "import sys, json; instances = json.load(sys.stdin); \
-            matching = [i['id'] for i in instances if i.get('public_ipaddr') == '$VAST_IP']; \
-            print(matching[0] if matching else '')" 2>/dev/null)
+            python3 -c "
+import sys, json
+try:
+    data = sys.stdin.read()
+    if data:
+        instances = json.loads(data)
+        for i in instances:
+            if i.get('public_ipaddr') == '$VAST_IP' or i.get('ssh_host') == '$VAST_IP':
+                print(i['id'])
+                break
+except:
+    pass
+" 2>/dev/null)
         
         if [[ -n "$instance_id" ]]; then
             info "Found instance ID: $instance_id"
