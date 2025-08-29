@@ -15,6 +15,7 @@ torch
 transformers
 accelerate
 datasets
+bitsandbytes   # For 8-bit and 4-bit quantization
 sentencepiece  # Required for some tokenizers
 tokenizers     # Fast tokenizers for transformers
 
