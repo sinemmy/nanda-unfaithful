@@ -31,14 +31,15 @@ This project combines unfaithful CoT generation with thought anchors analysis to
 
 ### Requirements
 - Python 3.10+
-- CUDA-capable GPU (recommended) or MPS (Mac) or CPU
-- ~30GB disk space for model downloads
+- CUDA-capable GPU with ~9GB+ VRAM (RTX 3090/4090 or better)
+- ~50GB disk space (30GB for model downloads)
+- For vast.ai: RTX 4090/6000 Ada recommended
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/NandaStream/nanda-unfaithful.git
+git clone https://github.com/sinemmy/nanda-unfaithful.git
 cd nanda-unfaithful
 ```
 
@@ -50,43 +51,57 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
+# Option 1: Use setup script (recommended for vast.ai)
+./setup_dependencies.sh
+
+# Option 2: Manual install
 pip install -r requirements.txt
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
-4. Set up environment variables (optional):
+4. Set up environment variables:
 ```bash
 cp .env.example .env
-# Edit .env to add any API keys if needed
+# Edit .env to add VAST_AI_API_KEY if using vast.ai
 ```
 
 ## Usage
 
 ### Generate Unfaithful CoT Examples
 
-Generate biased and unbiased CoT examples:
+⚠️ **IMPORTANT**: Always use tmux when running on remote servers - SSH will drop during 30GB model download!
+
 ```bash
-python main.py --max-examples 5
+# Local test (small):
+python main.py --test --max-examples 1
+
+# Full run (requires GPU):
+python main.py --max-examples 10 --output-dir outputs/r1_unfaithful_test --verbose
 ```
 
 Options:
 - `--model`: Model to use (default: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B)
-- `--max-examples`: Number of examples to generate
+- `--max-examples`: Number of examples to generate (default: 5)
 - `--output-dir`: Output directory for results
-- `--cpu`: Use CPU instead of GPU
-- `--test`: Test mode with smaller model
+- `--max-tokens`: Max new tokens to generate (default: 1024, reduce if OOM)
+- `--temperature`: Generation temperature (default: 0.8)
+- `--test`: Test mode with minimal settings
+- `--cpu`: Force CPU (very slow, not recommended)
+- `--verbose`: Show generation progress
 
 ### Run Thought Anchors Analysis
 
-After generating examples, run the analysis:
+⚠️ **NOT YET IMPLEMENTED** - Currently only generates text examples, does not capture activations!
+
 ```bash
-python run_anchors_analysis.py --input-dir outputs/unfaithful_cot/[timestamp]
+# This will NOT work yet - activation capturing needs to be implemented
+# python run_anchors_analysis.py --input-dir outputs/unfaithful_cot/[timestamp]
 ```
 
-This will:
-1. Run counterfactual resampling to identify important sentences
-2. Analyze attention patterns to find receiver heads
-3. Test attention suppression on key anchors
-4. Compare anchor patterns between faithful and unfaithful examples
+To implement thought anchors, we need to:
+1. Add model hooks to capture activations at each token
+2. Store attention weights from all layers/heads
+3. Implement counterfactual, attention, and suppression analysis
 
 ## Project Structure
 
@@ -123,17 +138,32 @@ The analysis produces:
 
 ## Deployment on vast.ai
 
-For GPU acceleration, you can deploy on vast.ai:
+For GPU acceleration on vast.ai:
 
 ```bash
-./deploy/deploy_run_terminate.sh initial [IP] [PORT]
-```
+# 1. Create instance (interactive selection)
+./deploy/create_vast_instance.sh
 
-This will automatically:
-- Deploy to a GPU instance
-- Run experiments
-- Download results
-- Terminate the instance
+# 2. Note the port number from output, then SSH:
+ssh -i ~/.ssh/vast_ai_key -p [PORT] root@ssh2.vast.ai
+
+# 3. Clone, setup, and run (use tmux!):
+cd /workspace
+git clone https://github.com/sinemmy/nanda-unfaithful.git
+cd nanda-unfaithful
+python -m venv .venv
+source .venv/bin/activate
+./setup_dependencies.sh
+
+tmux new -s experiment  # CRITICAL: Use tmux!
+python main.py --max-examples 10 --output-dir outputs/r1_unfaithful_test --verbose
+
+# 4. Download results (from local machine):
+scp -i ~/.ssh/vast_ai_key -P [PORT] -r root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs ./
+
+# 5. Terminate instance:
+vastai destroy instance [INSTANCE_ID]
+```
 
 ## Key Findings (To be updated)
 
