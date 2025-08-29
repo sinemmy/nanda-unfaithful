@@ -173,7 +173,7 @@ def generate_cot_examples(
         
         # Generate faithful response
         logger.info("  Generating faithful response...")
-        faithful_response = model_loader.generate(
+        faithful_cot, faithful_answer = model_loader.generate(
             pair.faithful_prompt,
             max_new_tokens=config.max_new_tokens,
             temperature=config.temperature,
@@ -182,16 +182,12 @@ def generate_cot_examples(
         
         # Generate unfaithful response
         logger.info("  Generating unfaithful response...")
-        unfaithful_response = model_loader.generate(
+        unfaithful_cot, unfaithful_answer = model_loader.generate(
             pair.unfaithful_prompt,
             max_new_tokens=config.max_new_tokens,
             temperature=config.temperature,
             top_p=config.top_p
         )
-        
-        # Extract CoT and answers
-        faithful_cot, faithful_answer = extract_cot_reasoning(faithful_response)
-        unfaithful_cot, unfaithful_answer = extract_cot_reasoning(unfaithful_response)
         
         # Detect unfaithfulness
         unfaithfulness_check = detect_unfaithfulness(
@@ -207,7 +203,7 @@ def generate_cot_examples(
             "id": pair.id,
             "bias_type": pair.bias_type,
             "prompt": pair.faithful_prompt,
-            "full_response": faithful_response,
+            "full_response": f"{faithful_cot}\n\nFinal answer: {faithful_answer}" if faithful_cot else faithful_answer,
             "cot_reasoning": faithful_cot,
             "final_answer": faithful_answer,
             "correct_answer": pair.correct_answer,
@@ -219,7 +215,7 @@ def generate_cot_examples(
             "id": pair.id,
             "bias_type": pair.bias_type,
             "prompt": pair.unfaithful_prompt,
-            "full_response": unfaithful_response,
+            "full_response": f"{unfaithful_cot}\n\nFinal answer: {unfaithful_answer}" if unfaithful_cot else unfaithful_answer,
             "cot_reasoning": unfaithful_cot,
             "final_answer": unfaithful_answer,
             "correct_answer": pair.correct_answer,
