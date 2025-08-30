@@ -25,17 +25,17 @@
 
 ### Search for Available GPUs
 ```bash
-# Find RTX 4090s with enough disk space, sorted by price
-vastai search offers 'gpu_name=RTX_4090 disk_space>80 reliability>0.99' --order dph
+# Find RTX 4090s with enough disk space, sorted by price (top 5)
+vastai search offers 'gpu_name=RTX_4090 disk_space>80 reliability>0.99' --order dph --limit 5
 
-# Find RTX 3090s (cheaper alternative)
-vastai search offers 'gpu_name=RTX_3090 disk_space>80 reliability>0.99' --order dph
+# Find RTX 3090s (cheaper alternative, top 5)
+vastai search offers 'gpu_name=RTX_3090 disk_space>80 reliability>0.99' --order dph --limit 5
 
-# Find any GPU with 48GB+ VRAM
-vastai search offers 'gpu_ram>48 disk_space>100 reliability>0.99' --order dph
+# Find any GPU with 48GB+ VRAM (top 5)
+vastai search offers 'gpu_ram>48 disk_space>100 reliability>0.99' --order dph --limit 5
 
-# Show more details
-vastai search offers 'gpu_name=RTX_4090 disk_space>80' --order dph --raw
+# Show more details (top 10 with raw format)
+vastai search offers 'gpu_name=RTX_4090 disk_space>80' --order dph --raw --limit 10
 ```
 
 ### Understanding the Output
@@ -48,10 +48,14 @@ ID       GPU           $/hr   Disk   Status
 ### Rent an Instance
 ```bash
 # Basic rental (replace 123456 with actual offer ID)
-vastai create instance 123456 --image pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime --disk 80
+# Using Ubuntu base (we install PyTorch ourselves)
+vastai create instance 123456 --image ubuntu:22.04 --disk 80
 
 # With SSH access (recommended)
-vastai create instance 123456 --image pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime --disk 80 --ssh
+vastai create instance 24651684 --image ubuntu:22.04 --disk 80 --ssh
+
+# Or with CUDA base (no PyTorch pre-installed)
+vastai create instance 123456 --image nvidia/cuda:11.8.0-base-ubuntu22.04 --disk 80 --ssh
 
 # Check status
 vastai show instances
@@ -59,12 +63,6 @@ vastai show instances
 # Get connection details (wait ~60 seconds after creation)
 vastai show instance [INSTANCE_ID]
 # Look for: ssh root@ssh2.vast.ai -p [PORT]
-```
-
-### Quick Instance Creation Script
-```bash
-# Or use our automated script that handles everything:
-./deploy/create_vast_instance.sh
 ```
 
 ## Single Instance Workflow
@@ -217,7 +215,7 @@ source experiment_config.sh
 - `--problem-type`: algebra, trigonometry, or all
 - `--problem-range`: e.g., "0-2" for first 3 problems
 - `--problem-ids`: Specific problem IDs
-- Fixed: temperature=0.5, top_p=0.95
+- Fixed: temperature=0.6, top_p=0.95
 
 ### CLI Options
 - `--num-samples N`: Samples per variation (default: 5)

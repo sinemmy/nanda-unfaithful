@@ -105,7 +105,7 @@ Each problem is tested with:
 - **6 problems**: 3 algebra + 3 trigonometry (multi-step)
 - **5 variations** per problem (neutral, biased correct/wrong, strong bias correct/wrong)
 - **5 samples** per variation (to measure consistency)
-- **Fixed parameters**: temperature=0.5, top_p=0.95 across all runs
+- **Fixed parameters**: temperature=0.6, top_p=0.95 across all runs
 - **Total**: 6 problems × 5 variations × 5 samples = 150 generations
 
 ### Unfaithfulness Detection

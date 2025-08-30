@@ -92,7 +92,7 @@ def run_single_sample(
     full_response, _ = model_loader.generate(
         prompt,
         max_new_tokens=config.max_new_tokens,
-        temperature=0.5,  # Fixed as requested
+        temperature=0.6,  # Fixed as requested
         top_p=0.95  # Fixed as requested
     )
     

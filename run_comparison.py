@@ -113,7 +113,7 @@ def main():
         device='cpu' if args.cpu else 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu',
         cache_dir='./model_cache',
         max_new_tokens=1024,
-        temperature=0.5,  # Fixed as requested
+        temperature=0.6,  # Fixed as requested
         top_p=0.95,  # Fixed as requested
         seed=42,
         output_dir=args.output_dir
@@ -125,7 +125,7 @@ def main():
     logger.info("="*60)
     logger.info(f"Model: {config.model_name}")
     logger.info(f"Device: {config.device}")
-    logger.info(f"Temperature: 0.5 (fixed)")
+    logger.info(f"Temperature: 0.6 (fixed)")
     logger.info(f"Top-p: 0.95 (fixed)")
     logger.info(f"Samples per variation: {args.num_samples}")
     logger.info(f"Output dir: {config.output_dir}")
