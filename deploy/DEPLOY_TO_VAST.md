@@ -52,7 +52,7 @@ ID       GPU           $/hr   Disk   Status
 vastai create instance 123456 --image ubuntu:22.04 --disk 80
 
 # With SSH access (recommended)
-vastai create instance 24651684 --image ubuntu:22.04 --disk 80 --ssh
+vastai create instance 16441207 --image ubuntu:22.04 --disk 80 --ssh
 
 # Or with CUDA base (no PyTorch pre-installed)
 vastai create instance 123456 --image nvidia/cuda:11.8.0-base-ubuntu22.04 --disk 80 --ssh
@@ -62,26 +62,36 @@ vastai show instances
 
 # Get connection details (wait ~60 seconds after creation)
 vastai show instance [INSTANCE_ID]
-# Look for: ssh root@ssh2.vast.ai -p [PORT]
+# Look for ssh_host (e.g., ssh5.vast.ai) and ssh_port (e.g., 21786)
+# Or use: vastai ssh-url [INSTANCE_ID] to get the full SSH command
 ```
 
 ## Single Instance Workflow
 
 ### Step 1: Create GPU Instance
-```bash
-./deploy/create_vast_instance.sh
-# Note the PORT number shown at the end
-```
+Use the CLI commands above to search for and rent an instance. Note the instance ID and PORT from `vastai show instance [ID]`.
 
 ### Step 2: SSH and Setup
 ```bash
-ssh -i ~/.ssh/vast_ai_key -p [PORT] root@ssh2.vast.ai
+# Get the exact SSH command from vast.ai
+vastai ssh-url [INSTANCE_ID]
+# This will show something like: ssh -p 21786 root@ssh5.vast.ai
+# Or use: vastai show instance [INSTANCE_ID] and look for the ssh_host and ssh_port
 
-# Clone and setup
+# Then SSH using the provided details
+ssh -i ~/.ssh/vast_ai_key -p [PORT] root@[SSH_HOST].vast.ai
+
+# Clone and setup (in home directory)
+cd ~
+# or 
 cd /workspace
+# might need to 
+apt install python3.10-venv
+# Install Python, git, and nano if needed
+apt-get update && apt-get install -y python3 python3-pip python3-venv git nano
 git clone https://github.com/sinemmy/nanda-unfaithful.git
 cd nanda-unfaithful
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 ./setup_dependencies.sh
 ```
@@ -89,7 +99,7 @@ source .venv/bin/activate
 ### Step 3: Copy .env File
 ```bash
 # From your LOCAL machine:
-scp -P [PORT] .env root@ssh2.vast.ai:/workspace/nanda-unfaithful/
+scp -i ~/.ssh/vast_ai_key -P [PORT] .env root@[SSH_HOST].vast.ai:~/nanda-unfaithful/
 ```
 
 ### Step 4: Run Experiment (in tmux!)
@@ -103,12 +113,39 @@ source experiment_config.sh  # Edit first to select subset
 
 # Option B: Direct command
 python run_comparison.py --num-samples 5 --verbose
+
+# DETACH FROM TMUX (keeps experiment running):
+# Press: Ctrl+B then D
+
+# You can now safely close SSH:
+exit
+```
+
+### Reconnecting to Running Experiment
+```bash
+# From your local machine, SSH back in:
+ssh -i ~/.ssh/vast_ai_key -p [PORT] root@[SSH_HOST].vast.ai
+
+# Reactivate virtual environment:
+cd ~/nanda-unfaithful
+source .venv/bin/activate
+
+# List running tmux sessions:
+tmux ls
+
+# Reattach to your experiment:
+tmux attach -t experiment
+# Or if you named it something else:
+tmux attach -t algebra  # or trig, etc.
+
+# To check progress without attaching:
+ls -la outputs/
 ```
 
 ### Step 5: Download Results & Cleanup
 ```bash
 # From LOCAL machine - download results
-scp -r -P [PORT] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/
+scp -i ~/.ssh/vast_ai_key -r -P [PORT] root@[SSH_HOST].vast.ai:~/nanda-unfaithful/outputs/* ./outputs/
 
 # On vast.ai instance - cleanup
 ./deploy/cleanup_before_termination.sh
@@ -121,21 +158,23 @@ vastai destroy instance [INSTANCE_ID]
 
 ### Option 1: Split by Problem Type (2 instances)
 ```bash
-# Create 2 instances
-./deploy/create_vast_instance.sh  # Instance 1 - note PORT1
-./deploy/create_vast_instance.sh  # Instance 2 - note PORT2
 
 # Instance 1 (Algebra)
-ssh -i ~/.ssh/vast_ai_key -p [PORT1] root@ssh2.vast.ai
+ssh -i ~/.ssh/vast_ai_key -p [PORT1] root@[SSH_HOST1].vast.ai
 # ... setup steps ...
+# Edit config using nano (install with: apt-get install -y nano)
 nano experiment_config.sh  # Uncomment: export SUBSET_ARGS="--problem-type algebra"
+# OR use sed to edit without nano:
+sed -i 's/^export SUBSET_ARGS=""$/# export SUBSET_ARGS=""\nexport SUBSET_ARGS="--problem-type algebra"/' experiment_config.sh
 tmux new -s algebra
 ./run_experiment.sh
 
 # Instance 2 (Trigonometry) - in new terminal
-ssh -i ~/.ssh/vast_ai_key -p [PORT2] root@ssh2.vast.ai
+ssh -i ~/.ssh/vast_ai_key -p [PORT2] root@[SSH_HOST2].vast.ai
 # ... setup steps ...
 nano experiment_config.sh  # Uncomment: export SUBSET_ARGS="--problem-type trigonometry"
+# OR use sed:
+sed -i 's/^export SUBSET_ARGS=""$/# export SUBSET_ARGS=""\nexport SUBSET_ARGS="--problem-type trigonometry"/' experiment_config.sh
 tmux new -s trig
 ./run_experiment.sh
 ```
@@ -166,8 +205,8 @@ export SUBSET_ARGS="--problem-ids alg_2"  # Instance 2
 mkdir -p outputs/combined_run
 
 # Download from each instance
-scp -r -P [PORT1] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/combined_run/
-scp -r -P [PORT2] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/combined_run/
+scp -i ~/.ssh/vast_ai_key -r -P [PORT1] root@[SSH_HOST1].vast.ai:~/nanda-unfaithful/outputs/* ./outputs/combined_run/
+scp -i ~/.ssh/vast_ai_key -r -P [PORT2] root@[SSH_HOST2].vast.ai:~/nanda-unfaithful/outputs/* ./outputs/combined_run/
 # ... repeat for all instances
 
 # Output folders will be uniquely named:
