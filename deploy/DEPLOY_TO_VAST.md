@@ -1,6 +1,6 @@
-# Deploying Unfaithful CoT Experiments to vast.ai
+# Deploying Bias Comparison Experiments to vast.ai
 
-## 🚀 100% CLI-Based Workflow (No Web Console Needed!)
+## 🚀 Updated Workflow for Controlled Experiments
 
 ## Prerequisites
 1. Install vast.ai CLI: `pip install vastai`
@@ -11,152 +11,246 @@
    # - GITHUB_REPO=https://github.com/YOUR_USERNAME/nanda-unfaithful.git
    # - VAST_AI_API_KEY=YOUR_KEY (get from https://vast.ai/account)
    ```
+3. Set API key using environment variable:
+   ```bash
+   # Load from .env file
+   source .env
+   vastai set api-key $VAST_AI_API_KEY
+   
+   # Or directly from .env without sourcing
+   vastai set api-key $(grep VAST_AI_API_KEY .env | cut -d '=' -f2)
+   ```
 
-## Quick Start (Fully Automated)
+## Finding and Renting Instances via CLI
 
-### Step 1: Create & Rent GPU Instance (Interactive)
+### Search for Available GPUs
 ```bash
-# Run the interactive instance creator
+# Find RTX 4090s with enough disk space, sorted by price
+vastai search offers 'gpu_name=RTX_4090 disk_space>80 reliability>0.99' --order dph
+
+# Find RTX 3090s (cheaper alternative)
+vastai search offers 'gpu_name=RTX_3090 disk_space>80 reliability>0.99' --order dph
+
+# Find any GPU with 48GB+ VRAM
+vastai search offers 'gpu_ram>48 disk_space>100 reliability>0.99' --order dph
+
+# Show more details
+vastai search offers 'gpu_name=RTX_4090 disk_space>80' --order dph --raw
+```
+
+### Understanding the Output
+```
+ID       GPU           $/hr   Disk   Status
+123456   RTX_4090×1    0.42   120GB  available
+234567   RTX_4090×1    0.48   100GB  available
+```
+
+### Rent an Instance
+```bash
+# Basic rental (replace 123456 with actual offer ID)
+vastai create instance 123456 --image pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime --disk 80
+
+# With SSH access (recommended)
+vastai create instance 123456 --image pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime --disk 80 --ssh
+
+# Check status
+vastai show instances
+
+# Get connection details (wait ~60 seconds after creation)
+vastai show instance [INSTANCE_ID]
+# Look for: ssh root@ssh2.vast.ai -p [PORT]
+```
+
+### Quick Instance Creation Script
+```bash
+# Or use our automated script that handles everything:
 ./deploy/create_vast_instance.sh
-
-# This will:
-# 1. Search for available RTX 4090/3090 instances with 80GB+ disk
-# 2. Show you prices sorted by cost
-# 3. Let you select an instance by ID
-# 4. Create and start the instance
-# 5. Wait for it to be ready
-# 6. Display the exact command to run experiments
 ```
 
-### Step 2: Run Experiments (Auto-Terminates!)
-```bash
-# The create_vast_instance.sh script will show you the exact command, like:
-./deploy/deploy_run_terminate.sh initial 123.45.67.89 12345
+## Single Instance Workflow
 
-# For full run instead of quick test:
-./deploy/deploy_run_terminate.sh followup 123.45.67.89 12345
+### Step 1: Create GPU Instance
+```bash
+./deploy/create_vast_instance.sh
+# Note the PORT number shown at the end
 ```
 
-### Alternative: Manual Instance Creation
-If you prefer to manually search and create instances:
+### Step 2: SSH and Setup
 ```bash
-# Find cheapest RTX 4090
-vastai search offers 'gpu_name=RTX_4090 disk_space>80 cuda_vers>=12.0' --order dph
+ssh -i ~/.ssh/vast_ai_key -p [PORT] root@ssh2.vast.ai
 
-# Rent the instance (replace OFFER_ID with ID from search)
-vastai create instance OFFER_ID --image pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime --disk 80 --ssh
-
-# Wait for it to start and get connection info
-sleep 60
-vastai show instances  # Note: ssh root@IP -p PORT
-
-# Run experiments
-./deploy/deploy_run_terminate.sh initial IP PORT
-```
-
-That's it! The script handles everything:
-- Deploys code from GitHub
-- Installs dependencies
-- Runs experiments
-- Downloads results to `results_[type]_[timestamp]/`
-- **Terminates instance automatically** (no overcharging!)
-
-## Manual Deployment (If Needed)
-
-### Option B: Direct Upload (No GitHub)
-1. On your local machine, create archive:
-```bash
-cd /Users/oshun/Documents/GitHub/NandaStream
-tar -czf nanda-unfaithful.tar.gz nanda-unfaithful/ \
-    --exclude='.venv' \
-    --exclude='__pycache__' \
-    --exclude='model_cache' \
-    --exclude='outputs'
-```
-
-2. Upload to vast.ai instance:
-```bash
-scp -P 12345 nanda-unfaithful.tar.gz root@123.45.67.89:/workspace/
-```
-
-3. SSH in and extract:
-```bash
-ssh root@123.45.67.89 -p 12345
+# Clone and setup
 cd /workspace
-tar -xzf nanda-unfaithful.tar.gz
+git clone https://github.com/sinemmy/nanda-unfaithful.git
 cd nanda-unfaithful
-# Now use deploy_run_terminate.sh from your local machine instead
+python -m venv .venv
+source .venv/bin/activate
+./setup_dependencies.sh
 ```
 
-### Option C: Direct Copy (Simple but Slower)
+### Step 3: Copy .env File
 ```bash
-# Copy entire directory (excluding large files)
-rsync -avz -e "ssh -p 12345" \
-    --exclude='.venv' \
-    --exclude='model_cache' \
-    --exclude='__pycache__' \
-    /Users/oshun/Documents/GitHub/NandaStream/nanda-unfaithful/ \
-    root@123.45.67.89:/workspace/nanda-unfaithful/
+# From your LOCAL machine:
+scp -P [PORT] .env root@ssh2.vast.ai:/workspace/nanda-unfaithful/
 ```
 
-## CLI Usage Examples (Direct from Command Line!)
+### Step 4: Run Experiment (in tmux!)
+```bash
+# On vast.ai instance
+tmux new -s experiment
 
-Once deployed, you can run experiments with various options:
+# Option A: Use configuration file
+source experiment_config.sh  # Edit first to select subset
+./run_experiment.sh
+
+# Option B: Direct command
+python run_comparison.py --num-samples 5 --verbose
+```
+
+### Step 5: Download Results & Cleanup
+```bash
+# From LOCAL machine - download results
+scp -r -P [PORT] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/
+
+# On vast.ai instance - cleanup
+./deploy/cleanup_before_termination.sh
+
+# From LOCAL machine - terminate
+vastai destroy instance [INSTANCE_ID]
+```
+
+## Parallel Instance Workflow (Multiple GPUs)
+
+### Option 1: Split by Problem Type (2 instances)
+```bash
+# Create 2 instances
+./deploy/create_vast_instance.sh  # Instance 1 - note PORT1
+./deploy/create_vast_instance.sh  # Instance 2 - note PORT2
+
+# Instance 1 (Algebra)
+ssh -i ~/.ssh/vast_ai_key -p [PORT1] root@ssh2.vast.ai
+# ... setup steps ...
+nano experiment_config.sh  # Uncomment: export SUBSET_ARGS="--problem-type algebra"
+tmux new -s algebra
+./run_experiment.sh
+
+# Instance 2 (Trigonometry) - in new terminal
+ssh -i ~/.ssh/vast_ai_key -p [PORT2] root@ssh2.vast.ai
+# ... setup steps ...
+nano experiment_config.sh  # Uncomment: export SUBSET_ARGS="--problem-type trigonometry"
+tmux new -s trig
+./run_experiment.sh
+```
+
+### Option 2: Split by Range (3 instances)
+```bash
+# Instance 1: Problems 0-1
+export SUBSET_ARGS="--problem-range 0-1"
+
+# Instance 2: Problems 2-3  
+export SUBSET_ARGS="--problem-range 2-3"
+
+# Instance 3: Problems 4-5
+export SUBSET_ARGS="--problem-range 4-5"
+```
+
+### Option 3: One Problem Per Instance (6 instances - fastest)
+```bash
+# Each instance runs one problem
+export SUBSET_ARGS="--problem-ids alg_1"  # Instance 1
+export SUBSET_ARGS="--problem-ids alg_2"  # Instance 2
+# ... etc
+```
+
+### Download from All Instances
+```bash
+# Create combined results folder
+mkdir -p outputs/combined_run
+
+# Download from each instance
+scp -r -P [PORT1] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/combined_run/
+scp -r -P [PORT2] root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs/* ./outputs/combined_run/
+# ... repeat for all instances
+
+# Output folders will be uniquely named:
+# - 20241230_143022_algebra/
+# - 20241230_143045_trigonometry/
+```
+
+## Experiment Configuration Options
+
+Edit `experiment_config.sh` on each instance to select:
+
+### Problem Subsets
+- `--problem-type algebra` - Just algebra problems (3)
+- `--problem-type trigonometry` - Just trig problems (3)
+- `--problem-range 0-2` - First half (3 problems)
+- `--problem-range 3-5` - Second half (3 problems)
+- `--problem-ids alg_1 alg_2` - Specific problems
+
+### Sample Settings
+- `NUM_SAMPLES=5` - 5 samples per variation (default)
+- `NUM_SAMPLES=10` - More samples for better statistics
+
+## Available Experiment Commands
 
 ```bash
-# Test mode with minimal settings
-python main.py --test --max-examples 2
+# Full run (all 6 problems)
+python run_comparison.py --num-samples 5 --verbose
 
-# Generate 10 unfaithful examples
-python main.py --max-examples 10
+# Test mode with GPT-2
+python run_comparison.py --test
 
-# Focus on specific bias type
-python main.py --bias-type suggested_answer --max-examples 5
+# Run specific subsets
+python run_comparison.py --problem-type algebra --num-samples 5
+python run_comparison.py --problem-type trigonometry --num-samples 5
+python run_comparison.py --problem-range 0-2 --num-samples 5
+python run_comparison.py --problem-ids alg_1 trig_1 --num-samples 5
 
-# Higher temperature for more variation
-python main.py --temperature 0.9 --top-p 0.98 --max-examples 8
-
-# Run with thought anchors analysis
-python main.py --run-anchors --max-examples 10
-
-# Full pipeline with custom output
-python main.py --max-examples 15 --output-dir ./results/experiment1
-
-# Verbose mode for debugging
-python main.py --verbose --max-examples 3
+# Using configuration file
+source experiment_config.sh
+./run_experiment.sh
 ```
 
-### Available CLI Options:
-- `--max-examples N`: Number of examples to generate (default: 5)
-- `--bias-type TYPE`: Bias type: suggested_answer, sycophancy, spurious_few_shot, all (default: all)
-- `--temperature FLOAT`: Generation temperature (default: 0.8)
-- `--top-p FLOAT`: Top-p sampling (default: 0.95)
-- `--max-tokens N`: Max new tokens (default: 1024)
+### Key Parameters
+- `--num-samples`: Samples per variation (default: 5)
+- `--problem-type`: algebra, trigonometry, or all
+- `--problem-range`: e.g., "0-2" for first 3 problems
+- `--problem-ids`: Specific problem IDs
+- Fixed: temperature=0.5, top_p=0.95
+
+### CLI Options
+- `--num-samples N`: Samples per variation (default: 5)
+- `--problem-type TYPE`: algebra, trigonometry, or all
+- `--problem-range RANGE`: e.g., "0-2" for first 3 problems
+- `--problem-ids ID1 ID2`: Specific problem IDs
 - `--model NAME`: Model to use (default: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B)
-- `--cache-dir PATH`: Model cache directory (default: ./model_cache)
-- `--output-dir PATH`: Output directory (default: ./outputs/unfaithful_cot)
-- `--test`: Test mode with smaller model
+- `--output-dir PATH`: Output directory (default: ./outputs/bias_comparison)
+- `--test`: Test mode with GPT-2
 - `--cpu`: Force CPU usage
 - `--verbose`: Enable verbose logging
-- `--run-anchors`: Run thought anchors analysis after generation
 - `--seed N`: Random seed (default: 42)
 
-## Background Auto-Terminator (Perfect for Overnight Runs)
-```bash
-# Monitors, downloads results, and terminates after 4 hours
-python deploy/start_monitor_and_auto_terminate.py IP PORT 4 &
-```
+## Cost/Time Analysis
+
+| Strategy | Instances | Time per Instance | Total Time | Total Cost |
+|----------|-----------|-------------------|------------|------------|
+| Serial (1 GPU) | 1 | ~60 min | 60 min | ~$0.50 |
+| By Type (2 GPUs) | 2 | ~30 min | 30 min | ~$0.50 |
+| By Range (3 GPUs) | 3 | ~20 min | 20 min | ~$0.50 |
+| Per Problem (6 GPUs) | 6 | ~10 min | 10 min | ~$0.50 |
+
+Cost stays similar because each instance runs for proportionally less time!
 
 ## Tips
-- Model downloads ~30GB on first run (cached for future runs)
-- Use `tmux` or `screen` to keep experiments running if SSH disconnects
+- Model downloads ~30GB on first run (happens on EACH instance)
+- Always use `tmux` to prevent disconnection issues
 - Monitor GPU with `watch -n 1 nvidia-smi`
-- Results saved incrementally in `outputs/unfaithful_cot/`
-- **Auto-termination prevents overcharging** - always use the scripts!
+- Results saved with unique timestamps and subset names
+- Cleanup script ensures .env file is deleted
 
 ## Troubleshooting
-- **Permission denied**: Check SSH port number (it's not 22!)
-- **Out of memory**: Use A100 instead of 4090 or reduce `--max-tokens`
-- **Model download fails**: Check disk space with `df -h`
-- **Connection drops**: Use `tmux new -s experiment` before running
-- **Auto-termination fails**: Check VAST_AI_API_KEY in .env
+- **Permission denied**: Check SSH port number (not 22!)
+- **Out of memory**: Reduce batch size or use bigger GPU
+- **Model download fails**: Need 80GB+ disk space
+- **Connection drops**: Always use `tmux new -s experiment`

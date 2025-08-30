@@ -41,6 +41,5 @@ pip install datasets || {
 pip install vastai || echo "vastai CLI installation failed (optional)"
 
 echo ""
-echo "Setup complete! You can now run the experiments."
-echo "To test: python main.py --test --cpu --max-examples 2"
-echo "For GPU: python main.py --max-examples 10 --load-in-8bit"
+echo "✅ Dependencies installed successfully!"
+echo ""
