@@ -80,8 +80,8 @@ cp .env.example .env
 ⚠️ **IMPORTANT**: Always use tmux when running on remote servers - SSH will drop during 30GB model download!
 
 ```bash
-# Test mode (uses GPT-2, quick):
-python run_comparison.py --test
+# Quick test (1 problem only):
+python run_comparison.py --num-samples 1 --problem-range 0-0
 
 # Full experiment (requires GPU):
 python run_comparison.py --num-samples 5 --verbose
@@ -95,7 +95,6 @@ Options:
 - `--num-samples`: Samples per variation (default: 5, so 5×5=25 per problem)
 - `--output-dir`: Output directory (default: ./outputs/bias_comparison)
 - `--problem-ids`: Run specific problems only
-- `--test`: Test mode with GPT-2
 - `--cpu`: Force CPU (not recommended)
 - `--verbose`: Show detailed progress
 
@@ -182,7 +181,9 @@ source .venv/bin/activate
 ./setup_dependencies.sh
 
 tmux new -s experiment  # CRITICAL: Use tmux!
-python main.py --max-examples 10 --output-dir outputs/r1_unfaithful_test --verbose
+
+# Run the controlled bias comparison experiment
+python run_comparison.py --num-samples 5 --verbose
 
 # 4. Download results (from local machine):
 scp -i ~/.ssh/vast_ai_key -P [PORT] -r root@ssh2.vast.ai:/workspace/nanda-unfaithful/outputs ./

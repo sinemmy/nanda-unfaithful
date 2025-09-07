@@ -87,8 +87,6 @@ export SUBSET_ARGS=""
 # Force CPU (not recommended)
 # export DEVICE="--cpu"
 
-# Test mode (uses GPT-2, reduces samples)
-# export TEST_MODE="--test"
 
 # ============================================
 # FINAL COMMAND CONSTRUCTION

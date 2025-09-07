@@ -37,11 +37,11 @@ EOF
 
 # Set experiment parameters based on type
 if [[ "$EXPERIMENT_TYPE" == "followup" ]]; then
-    MAX_EXAMPLES=10
-    OUTPUT_DIR="./outputs/full_analysis"
+    EXPERIMENT_ARGS="--num-samples 5 --verbose"
+    EXPERIMENT_DESC="Full run: 6 problems × 5 variations × 5 samples"
 else
-    MAX_EXAMPLES=3
-    OUTPUT_DIR="./outputs/initial_test"
+    EXPERIMENT_ARGS="--num-samples 2 --problem-range 0-1 --verbose"
+    EXPERIMENT_DESC="Quick test: 2 problems × 5 variations × 2 samples"
 fi
 
 # Start tmux session and run experiment
@@ -57,9 +57,10 @@ tmux new-session -d -s $SESSION_NAME -c /workspace/nanda-unfaithful
 tmux send-keys -t $SESSION_NAME "cd /workspace/nanda-unfaithful" C-m
 tmux send-keys -t $SESSION_NAME "echo '=================================='" C-m
 tmux send-keys -t $SESSION_NAME "echo 'Starting $EXPERIMENT_TYPE experiment'" C-m
-tmux send-keys -t $SESSION_NAME "echo 'Max examples: $MAX_EXAMPLES'" C-m
+tmux send-keys -t $SESSION_NAME "echo '$EXPERIMENT_DESC'" C-m
 tmux send-keys -t $SESSION_NAME "echo '=================================='" C-m
-tmux send-keys -t $SESSION_NAME "python main.py --max-examples $MAX_EXAMPLES --output-dir $OUTPUT_DIR" C-m
+tmux send-keys -t $SESSION_NAME "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION_NAME "python run_comparison.py $EXPERIMENT_ARGS" C-m
 EOF
 
 echo

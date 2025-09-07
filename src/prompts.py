@@ -90,27 +90,44 @@ def extract_cot_reasoning(response: str) -> Tuple[Optional[str], Optional[str]]:
     Returns:
         Tuple of (cot_reasoning, final_answer)
     """
-    # Try to extract <thinking> tags first
-    thinking_match = re.search(r'<thinking>(.*?)</thinking>', response, re.DOTALL)
-    if thinking_match:
-        cot_reasoning = thinking_match.group(1).strip()
+    # Handle broken DeepSeek outputs that start with </think>
+    if response.startswith("</think>"):
+        # No CoT reasoning in these broken outputs
+        cot_reasoning = None
+        response = response[8:].strip()  # Remove the </think> tag
     else:
-        # Fallback: extract everything before "Final answer:" or similar
-        parts = re.split(r'(?i)(final answer|therefore|thus|so the answer is|the answer is)[:\s]', response)
-        if len(parts) > 1:
-            cot_reasoning = parts[0].strip()
+        # Try to extract <think> tags (DeepSeek-R1 format)
+        think_match = re.search(r'<think>(.*?)</think>', response, re.DOTALL)
+        if think_match:
+            cot_reasoning = think_match.group(1).strip()
+            # Final answer is everything after </think>
+            response = response[think_match.end():].strip()
         else:
-            cot_reasoning = None
+            # Try to extract <thinking> tags (other models)
+            thinking_match = re.search(r'<thinking>(.*?)</thinking>', response, re.DOTALL)
+            if thinking_match:
+                cot_reasoning = thinking_match.group(1).strip()
+                response = response[thinking_match.end():].strip()
+            else:
+                # Fallback: extract everything before "Final answer:" or similar
+                parts = re.split(r'(?i)(final answer|therefore|thus|so the answer is|the answer is)[:\s]', response)
+                if len(parts) > 1:
+                    cot_reasoning = parts[0].strip()
+                else:
+                    cot_reasoning = None
     
     # Extract final answer
     final_answer = None
     
     # Try various patterns for final answer
     patterns = [
-        r'(?i)final answer[:\s]+([^\n.]+)',
-        r'(?i)the answer is[:\s]+([^\n.]+)',
-        r'(?i)therefore[,\s]+([^\n.]+)',
-        r'(?i)= ([0-9,]+)',  # For math problems
+        r'\\{1,2}boxed\{([^}]+)\}',  # LaTeX boxed answer (handles \\boxed or \boxed)
+        r'\\{1,2}\(\\{1,2}boxed\{([^}]+)\}\\{1,2}\)',  # \\(\\boxed{6}\\) format
+        r'(?i)\*{0,2}final answer\*{0,2}[:\s]+.*?\\?\(?\s*([x\s=]*\s*[0-9.,/-]+)\s*\\?\)?',  # With optional bold
+        r'(?i)the answer is[:\s]+\\?\(?\s*([x\s=]*\s*[0-9.,/-]+)\s*\\?\)?',
+        r'(?i)therefore[,\s]+.*?\\?\(?\s*([x\s=]*\s*[0-9.,/-]+)\s*\\?\)?',
+        r'[xX]\s*=\s*([0-9.,/-]+)',  # Simple x = 6 format
+        r'(?i)solution[:\s]+.*?\\?\(?\s*([x\s=]*\s*[0-9.,/-]+)\s*\\?\)?',
         r'(?i)(?:is|equals)[:\s]+([^\n.]+)$'  # At the end
     ]
     
@@ -121,6 +138,16 @@ def extract_cot_reasoning(response: str) -> Tuple[Optional[str], Optional[str]]:
             # Clean up the answer
             final_answer = final_answer.rstrip('.').strip()
             break
+    
+    # Log if we couldn't extract final answer or CoT
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if cot_reasoning is None and response:
+        logger.debug(f"Could not extract CoT reasoning from response: {response[:200]}...")
+    
+    if final_answer is None and response:
+        logger.debug(f"Could not extract final answer from response: {response[:200]}...")
     
     return cot_reasoning, final_answer
 

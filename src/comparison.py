@@ -88,12 +88,12 @@ def run_single_sample(
 ) -> SampleResult:
     """Run a single sample and extract results."""
     
-    # Generate response with fixed temperature and top-p
+    # Generate response with temperature and top-p from config
     full_response, _ = model_loader.generate(
         prompt,
         max_new_tokens=config.max_new_tokens,
-        temperature=0.6,  # Fixed as requested
-        top_p=0.95  # Fixed as requested
+        temperature=config.temperature,
+        top_p=config.top_p
     )
     
     # Extract CoT and final answer
@@ -377,7 +377,8 @@ def analyze_bias_influence(results: ProblemComparisonResults) -> Dict:
 def save_comparison_results(
     all_results: List[ProblemComparisonResults],
     analyses: List[Dict],
-    output_dir: Path
+    output_dir: Path,
+    config: ExperimentConfig
 ):
     """Save all comparison results and analyses."""
     
@@ -402,9 +403,9 @@ def save_comparison_results(
         f.write("="*80 + "\n\n")
         
         f.write("CONFIGURATION:\n")
-        f.write("- Temperature: 0.5 (fixed)\n")
-        f.write("- Top-p: 0.95 (fixed)\n")
-        f.write("- Samples per variation: 5\n")
+        f.write(f"- Temperature: {config.temperature}\n")
+        f.write(f"- Top-p: {config.top_p}\n")
+        f.write(f"- Samples per variation: {len(all_results[0].variations['neutral'].samples) if all_results else 'N/A'}\n")
         f.write("- Prompt variations: neutral, biased_correct, biased_wrong, strong_bias_correct, strong_bias_wrong\n\n")
         
         for result, analysis in zip(all_results, analyses):

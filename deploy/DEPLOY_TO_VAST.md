@@ -235,8 +235,8 @@ Edit `experiment_config.sh` on each instance to select:
 # Full run (all 6 problems)
 python run_comparison.py --num-samples 5 --verbose
 
-# Test mode with GPT-2
-python run_comparison.py --test
+# Quick test (1 problem only)
+python run_comparison.py --num-samples 1 --problem-range 0-0
 
 # Run specific subsets
 python run_comparison.py --problem-type algebra --num-samples 5
@@ -263,7 +263,6 @@ source experiment_config.sh
 - `--problem-ids ID1 ID2`: Specific problem IDs
 - `--model NAME`: Model to use (default: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B)
 - `--output-dir PATH`: Output directory (default: ./outputs/bias_comparison)
-- `--test`: Test mode with GPT-2
 - `--cpu`: Force CPU usage
 - `--verbose`: Enable verbose logging
 - `--seed N`: Random seed (default: 42)

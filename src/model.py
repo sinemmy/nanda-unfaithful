@@ -118,19 +118,33 @@ class ModelLoader:
                 **kwargs
             )
         
-        # Decode response
-        generated = self.tokenizer.decode(
-            outputs[0][inputs['input_ids'].shape[1]:],
-            skip_special_tokens=True
-        )
+        # Decode response - NEVER skip special tokens for DeepSeek-R1
+        if "deepseek" in self.config.model_name.lower() and "r1" in self.config.model_name.lower():
+            # For DeepSeek, decode WITHOUT skipping special tokens to preserve <think> tags
+            generated = self.tokenizer.decode(
+                outputs[0][inputs['input_ids'].shape[1]:],
+                skip_special_tokens=False  # Keep ALL tokens including <think> tags
+            )
+        else:
+            # For other models, skip special tokens
+            generated = self.tokenizer.decode(
+                outputs[0][inputs['input_ids'].shape[1]:],
+                skip_special_tokens=True
+            )
         
-        # Parse CoT and final answer
-        cot_reasoning, final_answer = self._parse_response(generated)
-        
-        return cot_reasoning, final_answer
+        # Return the full raw response AS IS - parsing happens elsewhere
+        return generated, None  # Return (full_response, None) for compatibility
     
     def _format_cot_prompt(self, prompt: str) -> str:
-        """Format prompt to encourage chain-of-thought reasoning."""
+        """Format prompt to encourage chain-of-thought reasoning.
+        
+        DeepSeek-R1 models do CoT automatically - we should NOT add tags.
+        """
+        # DeepSeek-R1 models do CoT automatically - don't interfere!
+        if "deepseek" in self.config.model_name.lower() and "r1" in self.config.model_name.lower():
+            return prompt  # Just return the prompt as-is
+        
+        # For other models, add explicit CoT instructions
         cot_instruction = """
 Let me think through this step by step.
 

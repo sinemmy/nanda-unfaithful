@@ -18,9 +18,8 @@ from src.comparison import (
     save_comparison_results
 )
 
-# Setup logging
+# Setup logging - initially just configure the format
 logging.basicConfig(
-    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -53,11 +52,6 @@ def parse_arguments():
         help='Output directory for results'
     )
     
-    parser.add_argument(
-        '--test',
-        action='store_true',
-        help='Test mode - use smaller model and fewer samples'
-    )
     
     parser.add_argument(
         '--cpu',
@@ -97,15 +91,6 @@ def main():
     """Main execution function."""
     args = parse_arguments()
     
-    # Adjust for test mode
-    if args.test:
-        logger.info("Running in TEST MODE")
-        args.model = "gpt2"
-        args.num_samples = 2
-    
-    # Set verbose logging
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
     
     # Create configuration with fixed temperature and top-p
     config = ExperimentConfig(
@@ -119,6 +104,28 @@ def main():
         output_dir=args.output_dir
     )
     
+    # Setup file logging - create log directory based on timestamp  
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = Path(config.output_dir) / f"logs_{timestamp}"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "experiment.log"
+    
+    # Add file handler for ALL debug logs
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)  # Always capture DEBUG to file
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    
+    # Set console handler based on verbose flag
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    
+    # Clear existing handlers and add our configured ones
+    logging.getLogger().handlers = []
+    logging.getLogger().addHandler(console_handler)
+    logging.getLogger().addHandler(file_handler)
+    logging.getLogger().setLevel(logging.DEBUG)  # Root logger at DEBUG, handlers control what's shown
+    
     # Log configuration
     logger.info("="*60)
     logger.info("BIAS COMPARISON EXPERIMENT")
@@ -129,6 +136,7 @@ def main():
     logger.info(f"Top-p: 0.95 (fixed)")
     logger.info(f"Samples per variation: {args.num_samples}")
     logger.info(f"Output dir: {config.output_dir}")
+    logger.info(f"Log file: {log_file}")
     
     try:
         # Load model
@@ -213,7 +221,7 @@ def main():
             subset_info = f"_{'_'.join(args.problem_ids[:2])}"  # First 2 IDs
         
         output_dir = Path(config.output_dir) / f"{timestamp}{subset_info}"
-        save_comparison_results(all_results, all_analyses, output_dir)
+        save_comparison_results(all_results, all_analyses, output_dir, config)
         
         # Print summary
         print("\n" + "="*60)

@@ -161,13 +161,13 @@ run_experiments() {
     local analysis_cmd
     
     if [[ "$EXPERIMENT_TYPE" == "initial" ]]; then
-        info "Running initial unfaithful CoT generation (quick test)..."
-        experiment_cmd="python main.py --max-examples 3 --output-dir ./outputs/initial_test"
-        analysis_cmd="python run_anchors_analysis.py --input-dir ./outputs/initial_test/* --max-examples 2 --num-rollouts 3"
+        info "Running initial bias comparison experiment (quick test with 2 problems)..."
+        experiment_cmd="python run_comparison.py --num-samples 2 --problem-range 0-1 --verbose"
+        analysis_cmd="echo 'Anchors analysis not yet implemented for comparison experiments'"
     else
-        info "Running full unfaithful CoT generation and thought anchors analysis..."
-        experiment_cmd="python main.py --max-examples 10 --output-dir ./outputs/full_analysis"
-        analysis_cmd="python run_anchors_analysis.py --input-dir ./outputs/full_analysis/* --num-rollouts 10"
+        info "Running full bias comparison experiment (all 6 math problems)..."
+        experiment_cmd="python run_comparison.py --num-samples 5 --verbose"
+        analysis_cmd="echo 'Anchors analysis not yet implemented for comparison experiments'"
     fi
     
     ssh -i "$SSH_KEY_PATH" -p "$VAST_PORT" "root@$VAST_IP" << ENDSSH
