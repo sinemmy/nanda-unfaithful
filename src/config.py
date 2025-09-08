@@ -13,7 +13,7 @@ class ExperimentConfig:
     model_name: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
     max_attempts: int = 30
     early_stop_threshold: int = 3
-    temperature: float = 0.8
+    temperature: float = 0.6  # DeepSeek R1 works best with 0.5-0.7
     top_p: float = 0.95
     max_new_tokens: int = 2048
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -22,6 +22,10 @@ class ExperimentConfig:
     scenarios: List[str] = field(default_factory=lambda: ["murder", "blackmail", "leaking"])
     verbose: bool = True
     seed: Optional[int] = 42
+    
+    # CoT configuration
+    use_chat_template: bool = True  # Use chat template for prompting (required for DeepSeek R1)
+    cot_tag_format: str = "think"  # "think" for DeepSeek R1, "thinking" for others
     
     def __post_init__(self):
         # Create output directory if it doesn't exist

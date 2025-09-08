@@ -90,12 +90,12 @@ class ModelLoader:
         top_p = top_p or self.config.top_p
         max_new_tokens = max_new_tokens or self.config.max_new_tokens
         
-        # Format prompt with CoT instructions
-        cot_prompt = self._format_cot_prompt(prompt)
+        # Format prompt for model - handles message conversion
+        formatted_prompt = self._format_for_model(prompt)
         
-        # Tokenize input
+        # Tokenize the formatted prompt
         inputs = self.tokenizer(
-            cot_prompt,
+            formatted_prompt,
             return_tensors="pt",
             truncation=True,
             max_length=4096
@@ -118,47 +118,75 @@ class ModelLoader:
                 **kwargs
             )
         
-        # Decode response - NEVER skip special tokens for DeepSeek-R1
-        if "deepseek" in self.config.model_name.lower() and "r1" in self.config.model_name.lower():
-            # For DeepSeek, decode WITHOUT skipping special tokens to preserve <think> tags
-            generated = self.tokenizer.decode(
-                outputs[0][inputs['input_ids'].shape[1]:],
-                skip_special_tokens=False  # Keep ALL tokens including <think> tags
-            )
-        else:
-            # For other models, skip special tokens
-            generated = self.tokenizer.decode(
-                outputs[0][inputs['input_ids'].shape[1]:],
-                skip_special_tokens=True
-            )
+        # Decode response - NEVER skip special tokens (needed for CoT tags)
+        generated = self.tokenizer.decode(
+            outputs[0][inputs['input_ids'].shape[1]:],
+            skip_special_tokens=False
+        )
         
-        # Return the full raw response AS IS - parsing happens elsewhere
-        return generated, None  # Return (full_response, None) for compatibility
+        # Return full response and None (parsing happens in comparison.py)
+        # This maintains backward compatibility
+        return generated, None
     
-    def _format_cot_prompt(self, prompt: str) -> str:
-        """Format prompt to encourage chain-of-thought reasoning.
+    def _format_for_model(self, prompt: str) -> str:
+        """Format prompt for the model based on config settings.
         
-        DeepSeek-R1 models do CoT automatically - we should NOT add tags.
+        If use_chat_template: Converts to messages and applies chat template.
+        Otherwise: Adds explicit CoT instructions.
         """
-        # DeepSeek-R1 models do CoT automatically - don't interfere!
-        if "deepseek" in self.config.model_name.lower() and "r1" in self.config.model_name.lower():
-            return prompt  # Just return the prompt as-is
+        if self.config.use_chat_template:
+            # Convert string prompt to message format
+            messages = self._prompt_to_messages(prompt)
+            
+            # Apply chat template which adds appropriate tags
+            formatted = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            return formatted
         
-        # For other models, add explicit CoT instructions
-        cot_instruction = """
+        # For models without chat template, add explicit CoT instructions
+        # Use the configured tag format
+        tag = self.config.cot_tag_format
+        cot_instruction = f"""
 Let me think through this step by step.
 
-<thinking>
+<{tag}>
 [Your detailed reasoning here]
-</thinking>
+</{tag}>
 
 Based on my analysis, here is my response:
 """
         return f"{prompt}\n\n{cot_instruction}"
     
     def _parse_response(self, response: str) -> Tuple[str, str]:
-        """Parse response to extract CoT reasoning and final answer."""
-        # Try parsing with BeautifulSoup first for more robust handling
+        """Parse response to extract CoT reasoning and final answer.
+        
+        Uses the configured cot_tag_format to find and extract reasoning.
+        """
+        tag = self.config.cot_tag_format
+        closing_tag = f"</{tag}>"
+        
+        # If using chat template, the opening tag comes from template
+        # so we only look for the closing tag
+        if self.config.use_chat_template and closing_tag in response:
+            # Split on FIRST occurrence of closing tag
+            parts = response.split(closing_tag, 1)
+            cot_reasoning = parts[0].strip()
+            final_answer = parts[1].strip() if len(parts) > 1 else ""
+            return cot_reasoning, final_answer
+        elif not self.config.use_chat_template:
+            # For non-chat-template models, look for both opening and closing tags
+            opening_tag = f"<{tag}>"
+            if opening_tag in response and closing_tag in response:
+                start = response.index(opening_tag) + len(opening_tag)
+                end = response.index(closing_tag)
+                cot_reasoning = response[start:end].strip()
+                final_answer = response[end + len(closing_tag):].strip()
+                return cot_reasoning, final_answer
+        
+        # For other models, use original parsing logic
         try:
             soup = BeautifulSoup(response, "lxml")
             
@@ -215,6 +243,25 @@ Based on my analysis, here is my response:
                 break
         
         return cot_reasoning, final_answer
+    
+    def _prompt_to_messages(self, prompt: str) -> list:
+        """Convert a string prompt to message format.
+        
+        Handles both plain prompts and legacy 'System: ... User: ...' format.
+        """
+        # Check if prompt uses legacy format
+        if "System:" in prompt and "User:" in prompt:
+            # Parse legacy format
+            parts = prompt.split("\n\nUser: ")
+            system_part = parts[0].replace("System: ", "")
+            user_part = parts[1].replace("\n\nAssistant:", "") if len(parts) > 1 else ""
+            return [
+                {"role": "system", "content": system_part},
+                {"role": "user", "content": user_part}
+            ]
+        else:
+            # Simple user message
+            return [{"role": "user", "content": prompt}]
     
     def unload(self):
         """Unload model to free memory."""

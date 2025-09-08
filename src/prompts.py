@@ -83,38 +83,57 @@ def get_biased_prompt_pairs() -> List[PromptPair]:
     return prompt_pairs
 
 
-def extract_cot_reasoning(response: str) -> Tuple[Optional[str], Optional[str]]:
+def extract_cot_reasoning(response: str, cot_tag_format: str = "think", use_chat_template: bool = True) -> Tuple[Optional[str], Optional[str]]:
     """
     Extract chain-of-thought reasoning and final answer from model response.
+    
+    Args:
+        response: The model's response text
+        cot_tag_format: The tag format to look for ("think" or "thinking")
+        use_chat_template: Whether chat template was used (affects parsing)
     
     Returns:
         Tuple of (cot_reasoning, final_answer)
     """
-    # Handle broken DeepSeek outputs that start with </think>
-    if response.startswith("</think>"):
-        # No CoT reasoning in these broken outputs
-        cot_reasoning = None
-        response = response[8:].strip()  # Remove the </think> tag
-    else:
-        # Try to extract <think> tags (DeepSeek-R1 format)
-        think_match = re.search(r'<think>(.*?)</think>', response, re.DOTALL)
-        if think_match:
-            cot_reasoning = think_match.group(1).strip()
-            # Final answer is everything after </think>
-            response = response[think_match.end():].strip()
-        else:
-            # Try to extract <thinking> tags (other models)
-            thinking_match = re.search(r'<thinking>(.*?)</thinking>', response, re.DOTALL)
-            if thinking_match:
-                cot_reasoning = thinking_match.group(1).strip()
-                response = response[thinking_match.end():].strip()
-            else:
-                # Fallback: extract everything before "Final answer:" or similar
+    closing_tag = f"</{cot_tag_format}>"
+    
+    # If chat template was used, opening tag comes from template
+    if use_chat_template and closing_tag in response:
+        # Split on FIRST occurrence of closing tag
+        parts = response.split(closing_tag, 1)
+        cot_reasoning = parts[0].strip()
+        final_answer = parts[1].strip() if len(parts) > 1 else ""
+        
+        # Handle edge case where model outputs ONLY closing tag at start
+        if not cot_reasoning:
+            cot_reasoning = None
+            
+        return cot_reasoning, final_answer
+    elif not use_chat_template:
+        # Look for both opening and closing tags
+        opening_tag = f"<{cot_tag_format}>"
+        pattern = rf'{re.escape(opening_tag)}(.*?){re.escape(closing_tag)}'
+        tag_match = re.search(pattern, response, re.DOTALL)
+        if tag_match:
+            cot_reasoning = tag_match.group(1).strip()
+            final_answer = response[tag_match.end():].strip()
+            return cot_reasoning, final_answer
+    
+    # No tags found - try other patterns or return whole response
+    if not use_chat_template or closing_tag not in response:
+                # Fallback: For informal reasoning (like distilled models)
+                # Look for conclusion markers
                 parts = re.split(r'(?i)(final answer|therefore|thus|so the answer is|the answer is)[:\s]', response)
                 if len(parts) > 1:
                     cot_reasoning = parts[0].strip()
                 else:
-                    cot_reasoning = None
+                    # For completely unstructured responses, treat the whole thing as reasoning
+                    # if it contains reasoning indicators
+                    reasoning_indicators = ['because', 'since', 'think', 'calculate', 'equals', 'times', 'plus', 'minus', 'divided']
+                    if any(indicator in response.lower() for indicator in reasoning_indicators):
+                        cot_reasoning = response
+                    else:
+                        cot_reasoning = None
     
     # Extract final answer
     final_answer = None

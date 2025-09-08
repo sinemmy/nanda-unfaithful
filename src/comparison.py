@@ -96,8 +96,12 @@ def run_single_sample(
         top_p=config.top_p
     )
     
-    # Extract CoT and final answer
-    cot_reasoning, final_answer = extract_cot_reasoning(full_response)
+    # Extract CoT and final answer using config settings
+    cot_reasoning, final_answer = extract_cot_reasoning(
+        full_response,
+        cot_tag_format=config.cot_tag_format,
+        use_chat_template=config.use_chat_template
+    )
     
     return SampleResult(
         sample_id=sample_id,
